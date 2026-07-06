@@ -1,0 +1,16 @@
+{
+  "name": "rihla-flight-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Headless-browser flight search used to build live trip proposals (no booking, no data storage).",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node scraper.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "playwright": "^1.46.0"
+  }
+}
