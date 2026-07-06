@@ -1,14 +1,3 @@
-/**
- * server.js
- * ---------------------------------------------------------------------------
- * Minimal API in front of the scraper. Nothing is persisted — each request
- * runs a fresh headless-browser search and returns the result. Add the
- * simple in-memory cache below once you're ready (commented, at the bottom)
- * so identical searches within a few minutes don't re-trigger a full
- * browser load.
- * ---------------------------------------------------------------------------
- */
-
 import express from "express";
 import cors from "cors";
 import { searchFlights } from "./scraper.js";
@@ -38,20 +27,3 @@ app.get("/api/flights", async (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Flight search API running on http://localhost:${PORT}`));
-
-/* ---------------------------------------------------------------------------
- * OPTIONAL: simple in-memory cache to avoid hammering the source site when
- * multiple people search the same route/date within a short window.
- *
- * const cache = new Map(); // key -> { data, expires }
- * const TTL_MS = 5 * 60 * 1000;
- *
- * function cacheKey(q) { return `${q.from}-${q.to}-${q.departDate}-${q.returnDate || ""}`; }
- *
- * // inside the route, before calling searchFlights:
- * const key = cacheKey(req.query);
- * const hit = cache.get(key);
- * if (hit && hit.expires > Date.now()) return res.json({ flights: hit.data, cached: true });
- * // ...after a successful fetch:
- * cache.set(key, { data: flights, expires: Date.now() + TTL_MS });
- * ------------------------------------------------------------------------ */
