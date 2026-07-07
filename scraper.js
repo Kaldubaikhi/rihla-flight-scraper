@@ -33,7 +33,7 @@ import { chromium } from "playwright";
  * @param {string} [params.returnDate] "YYYY-MM-DD" (omit for one-way)
  * @returns {Promise<Array<{airline:string, price:number, currency:string, duration:string, stops:number, raw:string}>>}
  */
-export async function searchFlights({ from, to, departDate, returnDate }) {
+export async function searchFlights({ from, to, departDate, returnDate, debug = false }) {
   const query = returnDate
     ? `Flights from ${from} to ${to} on ${departDate} through ${returnDate}`
     : `Flights from ${from} to ${to} on ${departDate}`;
@@ -56,11 +56,52 @@ export async function searchFlights({ from, to, departDate, returnDate }) {
     await page.waitForSelector('div[role="listitem"]', { timeout: 20000 }).catch(() => null);
 
     const flights = await extractFlights(page);
+
+    // When asked (or whenever we parsed nothing), capture what the page
+    // actually was so we can tell a real block/consent wall apart from a
+    // stale selector without redeploying repeatedly.
+    if (debug || flights.length === 0) {
+      const diagnostics = await collectDiagnostics(page);
+      return debug ? { flights, diagnostics } : flights;
+    }
+
     return flights;
   } finally {
     await context.close();
     await browser.close();
   }
+}
+
+/**
+ * Snapshot of the loaded page for diagnosis. Distinguishes:
+ *  - a consent interstitial ("Before you continue")
+ *  - an anti-bot / "unusual traffic" wall
+ *  - a real results page whose selectors have changed
+ */
+async function collectDiagnostics(page) {
+  const base = { finalUrl: page.url(), title: await page.title().catch(() => null) };
+  const dom = await page.evaluate(() => {
+    const text = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
+    const has = (re) => re.test(text);
+    const count = (sel) => document.querySelectorAll(sel).length;
+    return {
+      textSnippet: text.slice(0, 600),
+      markers: {
+        consent: has(/before you continue|accept all|reject all|consent/i),
+        unusualTraffic: has(/unusual traffic|not a robot|are you a human|captcha/i),
+        sorryPage: /\/sorry\//.test(location.pathname),
+      },
+      selectorCounts: {
+        'div[role="listitem"]': count('div[role="listitem"]'),
+        '[role="listitem"]': count('[role="listitem"]'),
+        '[role="list"]': count('[role="list"]'),
+        'li': count('li'),
+        '[aria-label*="SAR"]': count('[aria-label*="SAR"]'),
+        '[aria-label*="hr"]': count('[aria-label*="hr"]'),
+      },
+    };
+  });
+  return { ...base, ...dom };
 }
 
 async function extractFlights(page) {
