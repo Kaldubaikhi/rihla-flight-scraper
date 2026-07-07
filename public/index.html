@@ -146,6 +146,13 @@
     d.setDate(d.getDate() + 30);
     document.getElementById("departDate").value = d.toISOString().slice(0, 10);
 
+    // When served over http(s) we call the API same-origin (relative path).
+    // When the file is opened directly (file:// — no base URL), relative
+    // fetch fails to parse, so fall back to the deployed API.
+    const API_BASE = /^https?:$/.test(location.protocol)
+      ? ""
+      : "https://rihla-flight-scraper-production.up.railway.app";
+
     const stopsLabel = (s) => s === 0 ? "Nonstop" : s == null ? "—" : s === 1 ? "1 stop" : `${s} stops`;
     const esc = (str) => String(str).replace(/[&<>"']/g, (c) => (
       { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
@@ -166,7 +173,7 @@
       btn.disabled = true;
 
       try {
-        const res = await fetch(`/api/flights?${params.toString()}`);
+        const res = await fetch(`${API_BASE}/api/flights?${params.toString()}`);
         const data = await res.json();
 
         if (!res.ok) throw new Error(data.detail || data.error || `Request failed (${res.status})`);
