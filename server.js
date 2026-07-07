@@ -6,9 +6,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve the search UI (public/index.html) at the root URL.
-app.use(express.static("public"));
-
 app.get("/api/flights", async (req, res) => {
   const { from, to, departDate, returnDate, debug } = req.query;
 
