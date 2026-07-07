@@ -99,6 +99,12 @@ async function collectDiagnostics(page) {
         '[aria-label*="SAR"]': count('[aria-label*="SAR"]'),
         '[aria-label*="hr"]': count('[aria-label*="hr"]'),
       },
+      // Real aria-label text from result-shaped elements, so the exact
+      // wording can be seen if parsing still yields nothing.
+      sampleLabels: Array.from(document.querySelectorAll('[aria-label]'))
+        .map((el) => el.getAttribute('aria-label') || '')
+        .filter((l) => /\d+\s*hr/i.test(l))
+        .slice(0, 3),
     };
   });
   return { ...base, ...dom };
@@ -106,32 +112,45 @@ async function collectDiagnostics(page) {
 
 async function extractFlights(page) {
   return page.evaluate(() => {
-    const items = Array.from(document.querySelectorAll('div[role="listitem"]'));
+    // Google Flights no longer uses div[role="listitem"]. Each result is an
+    // <li>, and the human-readable summary lives in an aria-label on an
+    // element inside it, phrased roughly like:
+    //   "From 548 Saudi riyals round trip total. Nonstop flight with Saudia.
+    //    Leaves King Khalid International Airport at 8:50 AM and arrives at
+    //    Dubai International Airport at 10:55 AM. Total duration 2 hr 5 min.
+    //    Select flight"
+    // Note the price reads "548 Saudi riyals", not "SAR 548" — the currency
+    // word, not the ISO code. The same label is often mirrored onto nested
+    // elements, so we dedupe.
+    const priceRe = /([\d,]+)\s*(?:Saudi riyals|riyals|US dollars|dollars)/i;
+    const altPriceRe = /(?:SAR|USD|\$)\s?([\d,]+)/i;
 
-    return items
-      .map((el) => {
-        const label = el.getAttribute("aria-label") || el.innerText || "";
-        if (!label || label.length < 20) return null;
+    const seen = new Set();
 
-        // aria-labels on Google Flights read roughly like:
-        // "Emirates. Nonstop flight. Departs 8:40 AM, arrives 11:15 AM.
-        //  Duration 3 hr 35 min. SAR 1,254."
-        const priceMatch = label.match(/(?:SAR|USD|\$)\s?([\d,]+)/i);
-        const durationMatch = label.match(/(\d+)\s*hr\s*(\d+)?\s*min?/i);
-        const stopsMatch = label.match(/Nonstop|1 stop|2 stops|(\d+) stops/i);
-        const airlineMatch = label.split(".")[0];
-
+    return Array.from(document.querySelectorAll("[aria-label]"))
+      .map((el) => el.getAttribute("aria-label") || "")
+      .filter((label) => /\d+\s*hr/i.test(label) && (priceRe.test(label) || altPriceRe.test(label)))
+      .map((label) => {
+        const priceMatch = label.match(priceRe) || label.match(altPriceRe);
         if (!priceMatch) return null;
+
+        const key = label.slice(0, 140);
+        if (seen.has(key)) return null;
+        seen.add(key);
+
+        const durationMatch = label.match(/(\d+)\s*hr(?:\s*(\d+)\s*min)?/i);
+        const airlineMatch = label.match(/flight with ([^.]+?)\./i);
+        const stopsMatch = label.match(/(\d+)\s*stop/i);
 
         const hours = durationMatch ? parseInt(durationMatch[1], 10) : null;
         const mins = durationMatch && durationMatch[2] ? parseInt(durationMatch[2], 10) : 0;
 
         return {
-          airline: airlineMatch?.trim() || "Unknown",
+          airline: airlineMatch ? airlineMatch[1].trim() : "Unknown",
           price: parseInt(priceMatch[1].replace(/,/g, ""), 10),
-          currency: /SAR/i.test(label) ? "SAR" : /USD|\$/i.test(label) ? "USD" : "unknown",
+          currency: /riyal|SAR/i.test(label) ? "SAR" : /dollar|USD|\$/i.test(label) ? "USD" : "unknown",
           duration: hours != null ? `${hours}h${mins ? " " + mins + "m" : ""}` : null,
-          stops: /nonstop/i.test(label) ? 0 : stopsMatch ? parseInt(stopsMatch[1] || "1", 10) : null,
+          stops: /nonstop/i.test(label) ? 0 : stopsMatch ? parseInt(stopsMatch[1], 10) : null,
           raw: label,
         };
       })
