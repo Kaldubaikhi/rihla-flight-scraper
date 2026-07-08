@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Plane, Hotel, Compass, Wallet, Users, Sparkles, ArrowRight, ArrowLeft, X, Check, Printer, ChevronDown, ChevronUp, Sun, Mountain, ShoppingBag, Landmark, Baby, Plus } from "lucide-react";
 
 /* ---------------- Design tokens ----------------
@@ -25,33 +25,33 @@ const MOODS = ["Calm", "Energetic", "Romantic", "Curious", "Festive"];
 const AIRLINES = ["Emirates", "Qatar Airways", "Turkish Airlines", "Etihad", "British Airways", "Lufthansa", "Air France", "Singapore Airlines"];
 
 const HOME_CITIES = [
-  { id: "riyadh", name: "Riyadh", lat: 24.71, lon: 46.68 },
-  { id: "jeddah", name: "Jeddah", lat: 21.54, lon: 39.17 },
-  { id: "dammam", name: "Dammam", lat: 26.42, lon: 50.1 },
-  { id: "doha", name: "Doha", lat: 25.29, lon: 51.53 },
-  { id: "dubai", name: "Dubai", lat: 25.2, lon: 55.27 },
-  { id: "kuwait", name: "Kuwait City", lat: 29.38, lon: 47.98 },
-  { id: "manama", name: "Manama", lat: 26.23, lon: 50.59 },
-  { id: "amman", name: "Amman", lat: 31.95, lon: 35.93 },
-  { id: "cairo", name: "Cairo", lat: 30.04, lon: 31.24 },
-  { id: "istanbul", name: "Istanbul", lat: 41.01, lon: 28.98 },
+  { id: "riyadh", name: "Riyadh", iata: "RUH", lat: 24.71, lon: 46.68 },
+  { id: "jeddah", name: "Jeddah", iata: "JED", lat: 21.54, lon: 39.17 },
+  { id: "dammam", name: "Dammam", iata: "DMM", lat: 26.42, lon: 50.1 },
+  { id: "doha", name: "Doha", iata: "DOH", lat: 25.29, lon: 51.53 },
+  { id: "dubai", name: "Dubai", iata: "DXB", lat: 25.2, lon: 55.27 },
+  { id: "kuwait", name: "Kuwait City", iata: "KWI", lat: 29.38, lon: 47.98 },
+  { id: "manama", name: "Manama", iata: "BAH", lat: 26.23, lon: 50.59 },
+  { id: "amman", name: "Amman", iata: "AMM", lat: 31.95, lon: 35.93 },
+  { id: "cairo", name: "Cairo", iata: "CAI", lat: 30.04, lon: 31.24 },
+  { id: "istanbul", name: "Istanbul", iata: "IST", lat: 41.01, lon: 28.98 },
 ];
 
 const DESTINATIONS = [
-  { id: "maldives", name: "Maldives", region: "Indian Ocean", types: ["relax"], moods: ["Calm", "Romantic"], lat: 4.17, lon: 73.51, base: 2325, blurb: "Overwater villas, lagoon silence." },
-  { id: "bali", name: "Bali", region: "Indonesia", types: ["relax", "culture"], moods: ["Calm", "Curious"], lat: -8.65, lon: 115.22, base: 1800, blurb: "Rice terraces and temple mornings." },
-  { id: "santorini", name: "Santorini", region: "Greece", types: ["relax", "culture"], moods: ["Romantic", "Calm"], lat: 36.39, lon: 25.46, base: 1538, blurb: "Whitewashed cliffs, caldera sunsets." },
-  { id: "patagonia", name: "Patagonia", region: "Argentina/Chile", types: ["adventure"], moods: ["Energetic", "Curious"], lat: -50.34, lon: -72.28, base: 3338, blurb: "Glaciers, wind, and long trails." },
-  { id: "nepal", name: "Kathmandu", region: "Nepal", types: ["adventure", "culture"], moods: ["Energetic", "Curious"], lat: 27.72, lon: 85.32, base: 1725, blurb: "Himalayan peaks and prayer flags." },
-  { id: "costarica", name: "Costa Rica", region: "Central America", types: ["adventure", "family"], moods: ["Energetic", "Festive"], lat: 9.93, lon: -84.08, base: 2700, blurb: "Rainforest zip-lines, volcano air." },
-  { id: "orlando", name: "Orlando", region: "USA", types: ["family"], moods: ["Festive", "Energetic"], lat: 28.54, lon: -81.38, base: 2288, blurb: "Theme parks built for wide eyes." },
-  { id: "dubaidest", name: "Dubai", region: "UAE", types: ["family", "shopping"], moods: ["Festive", "Curious"], lat: 25.2, lon: 55.27, base: 1425, blurb: "Skylines, souks, desert dunes." },
-  { id: "tokyo", name: "Tokyo", region: "Japan", types: ["family", "culture", "shopping"], moods: ["Curious", "Festive"], lat: 35.68, lon: 139.69, base: 2625, blurb: "Neon streets, quiet shrines." },
-  { id: "milan", name: "Milan", region: "Italy", types: ["shopping", "culture"], moods: ["Curious", "Festive"], lat: 45.46, lon: 9.19, base: 1650, blurb: "Runways, arcades, espresso bars." },
-  { id: "newyork", name: "New York", region: "USA", types: ["shopping", "culture"], moods: ["Energetic", "Festive"], lat: 40.71, lon: -74.01, base: 2438, blurb: "Avenues that never fully sleep." },
-  { id: "rome", name: "Rome", region: "Italy", types: ["culture"], moods: ["Curious", "Romantic"], lat: 41.9, lon: 12.5, base: 1613, blurb: "Ruins folded into daily life." },
-  { id: "cairodest", name: "Cairo", region: "Egypt", types: ["culture"], moods: ["Curious"], lat: 30.04, lon: 31.24, base: 1313, blurb: "Pyramids at the edge of the city." },
-  { id: "athens", name: "Athens", region: "Greece", types: ["culture"], moods: ["Curious", "Calm"], lat: 37.98, lon: 23.73, base: 1500, blurb: "Marble hills, harbor light." },
+  { id: "maldives", name: "Maldives", iata: "MLE", region: "Indian Ocean", types: ["relax"], moods: ["Calm", "Romantic"], lat: 4.17, lon: 73.51, base: 2325, blurb: "Overwater villas, lagoon silence." },
+  { id: "bali", name: "Bali", iata: "DPS", region: "Indonesia", types: ["relax", "culture"], moods: ["Calm", "Curious"], lat: -8.65, lon: 115.22, base: 1800, blurb: "Rice terraces and temple mornings." },
+  { id: "santorini", name: "Santorini", iata: "JTR", region: "Greece", types: ["relax", "culture"], moods: ["Romantic", "Calm"], lat: 36.39, lon: 25.46, base: 1538, blurb: "Whitewashed cliffs, caldera sunsets." },
+  { id: "patagonia", name: "Patagonia", iata: "FTE", region: "Argentina/Chile", types: ["adventure"], moods: ["Energetic", "Curious"], lat: -50.34, lon: -72.28, base: 3338, blurb: "Glaciers, wind, and long trails." },
+  { id: "nepal", name: "Kathmandu", iata: "KTM", region: "Nepal", types: ["adventure", "culture"], moods: ["Energetic", "Curious"], lat: 27.72, lon: 85.32, base: 1725, blurb: "Himalayan peaks and prayer flags." },
+  { id: "costarica", name: "Costa Rica", iata: "SJO", region: "Central America", types: ["adventure", "family"], moods: ["Energetic", "Festive"], lat: 9.93, lon: -84.08, base: 2700, blurb: "Rainforest zip-lines, volcano air." },
+  { id: "orlando", name: "Orlando", iata: "MCO", region: "USA", types: ["family"], moods: ["Festive", "Energetic"], lat: 28.54, lon: -81.38, base: 2288, blurb: "Theme parks built for wide eyes." },
+  { id: "dubaidest", name: "Dubai", iata: "DXB", region: "UAE", types: ["family", "shopping"], moods: ["Festive", "Curious"], lat: 25.2, lon: 55.27, base: 1425, blurb: "Skylines, souks, desert dunes." },
+  { id: "tokyo", name: "Tokyo", iata: "HND", region: "Japan", types: ["family", "culture", "shopping"], moods: ["Curious", "Festive"], lat: 35.68, lon: 139.69, base: 2625, blurb: "Neon streets, quiet shrines." },
+  { id: "milan", name: "Milan", iata: "MXP", region: "Italy", types: ["shopping", "culture"], moods: ["Curious", "Festive"], lat: 45.46, lon: 9.19, base: 1650, blurb: "Runways, arcades, espresso bars." },
+  { id: "newyork", name: "New York", iata: "JFK", region: "USA", types: ["shopping", "culture"], moods: ["Energetic", "Festive"], lat: 40.71, lon: -74.01, base: 2438, blurb: "Avenues that never fully sleep." },
+  { id: "rome", name: "Rome", iata: "FCO", region: "Italy", types: ["culture"], moods: ["Curious", "Romantic"], lat: 41.9, lon: 12.5, base: 1613, blurb: "Ruins folded into daily life." },
+  { id: "cairodest", name: "Cairo", iata: "CAI", region: "Egypt", types: ["culture"], moods: ["Curious"], lat: 30.04, lon: 31.24, base: 1313, blurb: "Pyramids at the edge of the city." },
+  { id: "athens", name: "Athens", iata: "ATH", region: "Greece", types: ["culture"], moods: ["Curious", "Calm"], lat: 37.98, lon: 23.73, base: 1500, blurb: "Marble hills, harbor light." },
 ];
 
 const QUOTES = [
