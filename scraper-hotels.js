@@ -75,6 +75,9 @@ async function extractHotels(page) {
     // "LH Domus Caesari, $150" — the name is whatever precedes the price token.
     const splitBeforePrice = /\s*[,·]?\s*(?:\$|SAR\b|\d[\d,]*\s*(?:Saudi riyals|riyals))/i;
     const junkName = /^(sort by|all filters|price|guest rating|hotel class|amenities|deals|explore|filters|map|results)/i;
+    // Google's filter/sort bar can also match the card signature ("4+ rating
+    // Under $50 Pool 4- or 5-star …"); reject names carrying UI-chrome words.
+    const junkContains = /\brating\b|\bunder\b|amenities|eco-?certified|guest|hotel class|brands|offers|sort by|all filters|vacation rentals/i;
 
     // The hotel cards aren't a stable selector, but each card's text has a
     // recognisable signature: a "$"/riyal price AND a rating ("4.3/5", "(2.2K)")
@@ -95,7 +98,7 @@ async function extractHotels(page) {
       if (price == null) continue;
 
       let name = text.split(splitBeforePrice)[0].replace(/[,·]\s*$/, "").trim();
-      if (!name || name.length < 2 || name.length > 70 || junkName.test(name)) continue;
+      if (!name || name.length < 2 || name.length > 70 || junkName.test(name) || junkContains.test(name)) continue;
 
       const key = name.toLowerCase().slice(0, 40);
       if (seen.has(key)) continue;
