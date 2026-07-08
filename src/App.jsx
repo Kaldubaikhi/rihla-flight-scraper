@@ -555,7 +555,7 @@ function FlightStep({ dest, home, trip, settings, flight, setFlight }) {
                         {f.layovers && f.layovers.length > 0 && (
                           <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
                             {f.layovers.map((l, li) => (
-                              <div key={li} className="mono" style={{ fontSize: 11, opacity: 0.7 }}>{l.duration} in {l.place}</div>
+                              <div key={li} className="mono" style={{ fontSize: 11, opacity: 0.7 }}>{l.duration} · {l.place}</div>
                             ))}
                           </div>
                         )}
