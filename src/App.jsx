@@ -52,6 +52,24 @@ const DESTINATIONS = [
   { id: "rome", name: "Rome", iata: "FCO", region: "Italy", types: ["culture"], moods: ["Curious", "Romantic"], lat: 41.9, lon: 12.5, base: 1613, blurb: "Ruins folded into daily life." },
   { id: "cairodest", name: "Cairo", iata: "CAI", region: "Egypt", types: ["culture"], moods: ["Curious"], lat: 30.04, lon: 31.24, base: 1313, blurb: "Pyramids at the edge of the city." },
   { id: "athens", name: "Athens", iata: "ATH", region: "Greece", types: ["culture"], moods: ["Curious", "Calm"], lat: 37.98, lon: 23.73, base: 1500, blurb: "Marble hills, harbor light." },
+  { id: "beijing", name: "Beijing", iata: "PEK", region: "China", types: ["culture", "shopping"], moods: ["Curious", "Festive"], lat: 39.9, lon: 116.41, base: 2600, blurb: "Forbidden City, hutong lanes." },
+  { id: "shanghai", name: "Shanghai", iata: "PVG", region: "China", types: ["shopping", "culture"], moods: ["Festive", "Curious"], lat: 31.23, lon: 121.47, base: 2700, blurb: "The Bund, neon futures." },
+  { id: "seoul", name: "Seoul", iata: "ICN", region: "South Korea", types: ["shopping", "culture", "family"], moods: ["Curious", "Festive"], lat: 37.57, lon: 126.98, base: 2600, blurb: "Palaces, night eats, K-pop." },
+  { id: "bangkok", name: "Bangkok", iata: "BKK", region: "Thailand", types: ["shopping", "culture", "family"], moods: ["Festive", "Curious"], lat: 13.75, lon: 100.5, base: 1900, blurb: "Street food, gilded temples." },
+  { id: "phuket", name: "Phuket", iata: "HKT", region: "Thailand", types: ["relax", "family"], moods: ["Calm", "Festive"], lat: 7.88, lon: 98.39, base: 2000, blurb: "Andaman beaches, island hops." },
+  { id: "singapore", name: "Singapore", iata: "SIN", region: "Singapore", types: ["family", "shopping", "culture"], moods: ["Curious", "Festive"], lat: 1.35, lon: 103.82, base: 2400, blurb: "Gardens, hawker lanes, skyline." },
+  { id: "kualalumpur", name: "Kuala Lumpur", iata: "KUL", region: "Malaysia", types: ["shopping", "culture", "family"], moods: ["Curious", "Festive"], lat: 3.14, lon: 101.69, base: 2100, blurb: "Twin towers, night markets." },
+  { id: "paris", name: "Paris", iata: "CDG", region: "France", types: ["culture", "shopping"], moods: ["Romantic", "Curious"], lat: 48.86, lon: 2.35, base: 1900, blurb: "Boulevards, museums, café light." },
+  { id: "london", name: "London", iata: "LHR", region: "United Kingdom", types: ["culture", "shopping", "family"], moods: ["Curious", "Festive"], lat: 51.51, lon: -0.13, base: 2000, blurb: "Museums, markets, grey charm." },
+  { id: "barcelona", name: "Barcelona", iata: "BCN", region: "Spain", types: ["culture", "relax", "family"], moods: ["Festive", "Curious"], lat: 41.39, lon: 2.17, base: 1750, blurb: "Gaudí curves, beach tapas." },
+  { id: "amsterdam", name: "Amsterdam", iata: "AMS", region: "Netherlands", types: ["culture", "shopping"], moods: ["Curious", "Festive"], lat: 52.37, lon: 4.9, base: 1850, blurb: "Canals, bikes, gabled houses." },
+  { id: "swissalps", name: "Zurich & the Alps", iata: "ZRH", region: "Switzerland", types: ["adventure", "relax"], moods: ["Calm", "Energetic"], lat: 47.38, lon: 8.54, base: 2400, blurb: "Alpine lakes and high peaks." },
+  { id: "capetown", name: "Cape Town", iata: "CPT", region: "South Africa", types: ["adventure", "relax", "culture"], moods: ["Energetic", "Calm"], lat: -33.92, lon: 18.42, base: 2800, blurb: "Table Mountain meets ocean." },
+  { id: "marrakech", name: "Marrakech", iata: "RAK", region: "Morocco", types: ["culture", "shopping"], moods: ["Curious", "Festive"], lat: 31.63, lon: -7.99, base: 1600, blurb: "Souks, riads, desert edge." },
+  { id: "zanzibar", name: "Zanzibar", iata: "ZNZ", region: "Tanzania", types: ["relax", "adventure"], moods: ["Calm", "Romantic"], lat: -6.22, lon: 39.22, base: 2500, blurb: "Spice isle, turquoise water." },
+  { id: "sydney", name: "Sydney", iata: "SYD", region: "Australia", types: ["adventure", "family", "relax"], moods: ["Energetic", "Festive"], lat: -33.87, lon: 151.21, base: 3800, blurb: "Harbour, surf, sunshine." },
+  { id: "cancun", name: "Cancún", iata: "CUN", region: "Mexico", types: ["relax", "family"], moods: ["Calm", "Festive"], lat: 21.16, lon: -86.85, base: 3000, blurb: "Caribbean sand and cenotes." },
+  { id: "rio", name: "Rio de Janeiro", iata: "GIG", region: "Brazil", types: ["adventure", "relax", "family"], moods: ["Festive", "Energetic"], lat: -22.91, lon: -43.17, base: 3400, blurb: "Beaches under Sugarloaf." },
 ];
 
 const QUOTES = [
@@ -241,7 +259,7 @@ function AmbientBackground() {
 
 export default function App() {
   const [step, setStep] = useState(0);
-  const [settings, setSettings] = useState({ airlines: [], stars: [], propType: [], freeCancel: false, breakfast: false });
+  const [settings, setSettings] = useState({ airlines: [], stars: [], propType: [], freeCancel: false, breakfast: false, maxFlightHours: 24 });
   const [trip, setTrip] = useState({ from: "riyadh", start: "2026-09-10", end: "2026-09-16", type: "relax", mood: "Calm", budget: 15000, adults: 2, kids: 0, names: [] });
   const [destId, setDestId] = useState(null);
   const [flight, setFlight] = useState(null);
@@ -263,10 +281,12 @@ export default function App() {
   const steps = ["Prefs", "Trip", "Discover", "Flight", "Stay", "Days", "Export"];
 
   const suggested = useMemo(() => {
+    const cap = settings.maxFlightHours;
     return DESTINATIONS.filter((d) => d.types.includes(trip.type))
       .map((d) => ({ ...d, moodMatch: d.moods.includes(trip.mood), hours: haversineHours(home, d) }))
+      .filter((d) => cap >= 24 || d.hours <= cap)
       .sort((a, b) => (b.moodMatch - a.moodMatch) || a.hours - b.hours);
-  }, [trip.type, trip.mood, home]);
+  }, [trip.type, trip.mood, home, settings.maxFlightHours]);
 
   const activities = useMemo(() => {
     const pool = dest ? (ACTIVITY_POOL[dest.types[0]] || ACTIVITY_POOL.culture).map(([name, icon, cost]) => ({ id: uid(), name, icon, cost, perPerson: true })) : [];
@@ -317,7 +337,7 @@ export default function App() {
       <div style={{ position: "relative", zIndex: 1, maxWidth: 900, margin: "0 auto", padding: 16, paddingBottom: 100 }}>
         {step === 0 && <PreferencesStep settings={settings} toggleArr={toggleArr} setSettings={setSettings} />}
         {step === 1 && <TripStep trip={trip} setTrip={setTrip} />}
-        {step === 2 && <DiscoverStep suggested={suggested} destId={destId} setDestId={setDestId} trip={trip} home={home} />}
+        {step === 2 && <DiscoverStep suggested={suggested} destId={destId} setDestId={setDestId} trip={trip} home={home} maxFlightHours={settings.maxFlightHours} />}
         {step === 3 && <FlightStep dest={dest} home={home} trip={trip} settings={settings} flight={flight} setFlight={setFlight} />}
         {step === 4 && <HotelStep dest={dest} trip={trip} settings={settings} hotel={hotel} setHotel={setHotel} rooms={rooms} setRooms={setRooms} nights={nights} />}
         {step === 5 && <PlanStep dest={dest} activities={activities} days={days} plan={plan} addToDay={addToDay} removeFromDay={removeFromDay} setCustomActivities={setCustomActivities} participants={participants} />}
@@ -365,6 +385,14 @@ function PreferencesStep({ settings, toggleArr, setSettings }) {
           {["hotel", "apartment"].map((t) => (<button key={t} onClick={() => toggleArr("propType", t)} style={pill(settings.propType.includes(t))}>{t === "hotel" ? "Hotel" : "Apartment"}</button>))}
         </div>
       </div>
+      <div>
+        <span style={labelStyle}>Max total flight time (incl. stops)</span>
+        <div className="flex items-center gap-3">
+          <input type="range" min={2} max={24} step={1} value={settings.maxFlightHours} onChange={(e) => setSettings((s) => ({ ...s, maxFlightHours: Number(e.target.value) }))} style={{ flex: 1 }} />
+          <span className="mono" style={{ fontSize: 13, minWidth: 56, textAlign: "right" }}>{settings.maxFlightHours >= 24 ? "Any" : `≤ ${settings.maxFlightHours}h`}</span>
+        </div>
+        <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>Caps both the destinations recommended and the flights shown. "Any" = no limit.</div>
+      </div>
       <div className="flex flex-col gap-2">
         <label className="flex items-center gap-2" style={{ fontSize: 14 }}><input type="checkbox" checked={settings.freeCancel} onChange={() => setSettings((s) => ({ ...s, freeCancel: !s.freeCancel }))} /> Free cancellation only</label>
         <label className="flex items-center gap-2" style={{ fontSize: 14 }}><input type="checkbox" checked={settings.breakfast} onChange={() => setSettings((s) => ({ ...s, breakfast: !s.breakfast }))} /> Breakfast included only</label>
@@ -409,13 +437,23 @@ function TripStep({ trip, setTrip }) {
   );
 }
 
-function DiscoverStep({ suggested, destId, setDestId, trip, home }) {
-  const top = suggested.slice(0, 8);
+function DiscoverStep({ suggested, destId, setDestId, trip, home, maxFlightHours }) {
+  const [query, setQuery] = useState("");
+  const top = suggested.slice(0, 4);
   const c = 50;
+
+  const cap = maxFlightHours;
+  const q = query.trim().toLowerCase();
+  const browse = DESTINATIONS
+    .map((d) => ({ ...d, hours: haversineHours(home, d) }))
+    .filter((d) => cap >= 24 || d.hours <= cap)
+    .filter((d) => !q || d.name.toLowerCase().includes(q) || d.region.toLowerCase().includes(q))
+    .sort((a, b) => a.hours - b.hours);
+
   return (
     <div className="flex flex-col gap-5">
       <h2 style={{ fontSize: 24 }}>Where the compass points</h2>
-      <p style={{ fontSize: 14, opacity: 0.7, marginTop: -12 }}>Based on {trip.type} · {trip.mood.toLowerCase()} mood, from {home.name}. Rings mark rough flight time.</p>
+      <p style={{ fontSize: 14, opacity: 0.7, marginTop: -12 }}>Top matches for {trip.type} · {trip.mood.toLowerCase()} mood, from {home.name}{cap < 24 ? ` · within ${cap}h` : ""}. Rings mark rough flight time. Prefer somewhere else? Browse all below.</p>
 
       <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", maxWidth: 420, margin: "0 auto", borderRadius: 999, overflow: "hidden", border: `1px solid ${C.line}`, background: C.ocean }}>
         <svg viewBox="0 0 100 100" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
@@ -458,6 +496,31 @@ function DiscoverStep({ suggested, destId, setDestId, trip, home }) {
             </Stub>
           );
         })}
+      </div>
+
+      <div className="flex flex-col gap-3" style={{ paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
+        <div className="flex items-center justify-between">
+          <span style={labelStyle}>Browse all destinations</span>
+          <span style={{ fontSize: 11, opacity: 0.5 }}>{browse.length} place{browse.length !== 1 ? "s" : ""}</span>
+        </div>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a city or region — e.g. China, Tokyo, beach…" style={inputStyle} />
+        <div className="grid sm:grid-cols-2 gap-3">
+          {browse.map((d) => {
+            const active = destId === d.id;
+            return (
+              <Stub key={d.id} style={selectedRing(active, C.primary)}>
+                <div onClick={() => setDestId(d.id)} style={{ padding: "10px 20px", cursor: "pointer" }}>
+                  <div className="flex items-center justify-between">
+                    <span style={{ fontWeight: 600 }}>{d.name}</span>
+                    <span className="mono" style={{ fontSize: 11, opacity: 0.6 }}>{d.hours}h</span>
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.6 }}>{d.region} · from {fmt(d.base)}/adult</div>
+                </div>
+              </Stub>
+            );
+          })}
+          {browse.length === 0 && <p style={{ fontSize: 13, opacity: 0.6 }}>Nothing within your flight-time cap — raise "Max total flight time" in Preferences.</p>}
+        </div>
       </div>
     </div>
   );
@@ -502,6 +565,9 @@ function FlightStep({ dest, home, trip, settings, flight, setFlight }) {
 
   if (!dest) return <p>Pick a destination first.</p>;
 
+  const cap = settings.maxFlightHours;
+  const shown = cap >= 24 ? flights : flights.filter((f) => f.duration == null || f.duration <= cap);
+
   return (
     <div className="flex flex-col gap-4">
       <h2 style={{ fontSize: 24 }}>Flights to {dest.name}</h2>
@@ -527,7 +593,7 @@ function FlightStep({ dest, home, trip, settings, flight, setFlight }) {
       )}
 
       <div className="flex flex-col gap-2">
-        {flights.map((f) => {
+        {shown.map((f) => {
           const isOpen = expanded === f.id;
           const isSelected = flight?.id === f.id;
           const durText = f.duration != null ? f.duration.toFixed(1) + "h" : "—";
@@ -576,7 +642,7 @@ function FlightStep({ dest, home, trip, settings, flight, setFlight }) {
             </Stub>
           );
         })}
-        {status !== "loading" && flights.length === 0 && <p style={{ fontSize: 14, opacity: 0.6 }}>No flights found for this route — try different dates or adjust preferences in Settings.</p>}
+        {status !== "loading" && shown.length === 0 && <p style={{ fontSize: 14, opacity: 0.6 }}>{flights.length > 0 ? `No flights within your ${cap}h flight-time cap — raise it in Preferences.` : "No flights found for this route — try different dates or adjust preferences in Settings."}</p>}
       </div>
     </div>
   );
@@ -806,6 +872,15 @@ function ExportStep({ trip, dest, flight, hotel, rooms, nights, plan, breakdown,
       </div>
 
       <div ref={docRef} style={{ background: C.paper, borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ background: C.primary, color: C.paper, borderRadius: 8, padding: "20px 24px", display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 999, background: "rgba(255,255,255,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Compass size={26} color={C.paper} />
+          </div>
+          <div>
+            <div className="display" style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.1 }}>Rihla</div>
+            <div style={{ fontSize: 15, opacity: 0.92 }}>Your escape plan is ready!</div>
+          </div>
+        </div>
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: 24 }}>
           <div className="mono" style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.5 }}>Trip document</div>
           <h1 style={{ fontSize: 30, marginTop: 4 }}>{dest.name}</h1>
