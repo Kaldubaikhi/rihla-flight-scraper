@@ -3,6 +3,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { searchFlights } from "./scraper.js";
+import { searchHotels } from "./scraper-hotels.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, "dist");
@@ -33,6 +34,30 @@ app.get("/api/flights", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(502).json({ error: "Could not fetch live flight data right now.", detail: String(err.message || err) });
+  }
+});
+
+app.get("/api/hotels", async (req, res) => {
+  const { city, checkIn, checkOut, adults, debug } = req.query;
+
+  if (!city) {
+    return res.status(400).json({ error: "city is a required query param" });
+  }
+
+  try {
+    if (debug) {
+      const result = await searchHotels({ city, checkIn, checkOut, adults: Number(adults) || 2, debug: true });
+      return res.status(200).json(result);
+    }
+
+    const hotels = await searchHotels({ city, checkIn, checkOut, adults: Number(adults) || 2 });
+    if (hotels.length === 0) {
+      return res.status(200).json({ hotels: [], warning: "No results parsed — the source page may have changed or blocked this request." });
+    }
+    res.json({ hotels });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({ error: "Could not fetch live hotel data right now.", detail: String(err.message || err) });
   }
 });
 

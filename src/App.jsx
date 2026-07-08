@@ -153,6 +153,46 @@ function mapLiveFlights(apiFlights, { settings }) {
   return mapped.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
 }
 
+/* ---------- hotel data: mock generator + live-result adapter ---------- */
+function buildMockHotels({ dest, settings }) {
+  if (!dest) return [];
+  const names = ["The " + dest.name + " Pearl", dest.name + " Garden Residence", "Casa " + dest.name, dest.name + " Bay Apartments", dest.name + " Old Town House"];
+  const list = names.map((n, i) => ({ id: n, name: n, stars: [3, 4, 4, 5, 3][i], type: i % 2 === 0 ? "hotel" : "apartment", price: Math.round((dest.base / 4) * (0.7 + i * 0.22)), freeCancel: i % 2 === 0, breakfast: i !== 1, area: ["Old Town", "Marina", "Hillside", "Beachfront", "City Center"][i] }));
+  return list.filter((h) => {
+    if (settings.stars.length && !settings.stars.includes(h.stars)) return false;
+    if (settings.propType.length && !settings.propType.includes(h.type)) return false;
+    if (settings.freeCancel && !h.freeCancel) return false;
+    if (settings.breakfast && !h.breakfast) return false;
+    return true;
+  }).sort((a, b) => a.price - b.price);
+}
+
+function mapLiveHotels(apiHotels, { settings }) {
+  const mapped = (apiHotels || []).map((h, i) => {
+    // Prefer a scraped star class; else derive from the review rating; else 4.
+    const stars = h.stars != null ? h.stars : h.rating != null ? Math.max(1, Math.min(5, Math.round(h.rating))) : 4;
+    return {
+      id: (h.name || "hotel") + "-" + i,
+      name: h.name || "Hotel",
+      stars,
+      type: "hotel",
+      price: h.price,
+      rating: h.rating != null ? h.rating : null,
+      freeCancel: null, // not reliably available from the scrape
+      breakfast: null,
+      area: null,
+      live: true,
+    };
+  });
+  // Star preference is soft (same reasoning as flights). Free-cancel/breakfast
+  // aren't scraped, so those filters are skipped for live results.
+  if (settings.stars.length) {
+    const f = mapped.filter((x) => settings.stars.includes(x.stars));
+    if (f.length) return f.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+  }
+  return mapped.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+}
+
 /* ---------- style helpers (inline only — no color/size bracket classes) ---------- */
 const cardStyle = (accent = C.line) => ({ position: "relative", background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, boxShadow: "0 1px 2px rgba(27,36,48,0.06)" });
 const selectedRing = (on, color = C.primary) => (on ? { boxShadow: `0 0 0 2px ${color}` } : {});
@@ -228,19 +268,6 @@ export default function App() {
       .sort((a, b) => (b.moodMatch - a.moodMatch) || a.hours - b.hours);
   }, [trip.type, trip.mood, home]);
 
-  const hotels = useMemo(() => {
-    if (!dest) return [];
-    const names = ["The " + dest.name + " Pearl", dest.name + " Garden Residence", "Casa " + dest.name, dest.name + " Bay Apartments", dest.name + " Old Town House"];
-    const list = names.map((n, i) => ({ id: n, name: n, stars: [3, 4, 4, 5, 3][i], type: i % 2 === 0 ? "hotel" : "apartment", price: Math.round((dest.base / 4) * (0.7 + i * 0.22)), freeCancel: i % 2 === 0, breakfast: i !== 1, area: ["Old Town", "Marina", "Hillside", "Beachfront", "City Center"][i] }));
-    return list.filter((h) => {
-      if (settings.stars.length && !settings.stars.includes(h.stars)) return false;
-      if (settings.propType.length && !settings.propType.includes(h.type)) return false;
-      if (settings.freeCancel && !h.freeCancel) return false;
-      if (settings.breakfast && !h.breakfast) return false;
-      return true;
-    }).sort((a, b) => a.price - b.price);
-  }, [dest, settings]);
-
   const activities = useMemo(() => {
     const pool = dest ? (ACTIVITY_POOL[dest.types[0]] || ACTIVITY_POOL.culture).map(([name, icon, cost]) => ({ id: uid(), name, icon, cost, perPerson: true })) : [];
     return [...pool, ...customActivities];
@@ -292,7 +319,7 @@ export default function App() {
         {step === 1 && <TripStep trip={trip} setTrip={setTrip} />}
         {step === 2 && <DiscoverStep suggested={suggested} destId={destId} setDestId={setDestId} trip={trip} home={home} />}
         {step === 3 && <FlightStep dest={dest} home={home} trip={trip} settings={settings} flight={flight} setFlight={setFlight} />}
-        {step === 4 && <HotelStep dest={dest} hotels={hotels} hotel={hotel} setHotel={setHotel} rooms={rooms} setRooms={setRooms} nights={nights} />}
+        {step === 4 && <HotelStep dest={dest} trip={trip} settings={settings} hotel={hotel} setHotel={setHotel} rooms={rooms} setRooms={setRooms} nights={nights} />}
         {step === 5 && <PlanStep dest={dest} activities={activities} days={days} plan={plan} addToDay={addToDay} removeFromDay={removeFromDay} setCustomActivities={setCustomActivities} participants={participants} />}
         {step === 6 && <ExportStep trip={trip} dest={dest} flight={flight} hotel={hotel} rooms={rooms} nights={nights} plan={plan} breakdown={breakdown} setBreakdown={setBreakdown} flightTotal={flightTotal} hotelTotal={hotelTotal} activitiesTotal={activitiesTotal} remaining={remaining} home={home} />}
       </div>
@@ -555,30 +582,88 @@ function FlightStep({ dest, home, trip, settings, flight, setFlight }) {
   );
 }
 
-function HotelStep({ dest, hotels, hotel, setHotel, rooms, setRooms, nights }) {
+function HotelStep({ dest, trip, settings, hotel, setHotel, rooms, setRooms, nights }) {
+  const [hotels, setHotels] = useState([]);
+  const [status, setStatus] = useState("idle"); // idle | loading | live | estimated
+
+  useEffect(() => {
+    if (!dest) return;
+    let cancelled = false;
+    setStatus("loading");
+    setHotels([]);
+    const url =
+      `/api/hotels?city=${encodeURIComponent(dest.name)}` +
+      `&checkIn=${encodeURIComponent(trip.start)}&checkOut=${encodeURIComponent(trip.end)}` +
+      `&adults=${encodeURIComponent(trip.adults)}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const live = mapLiveHotels(data && data.hotels, { settings });
+        if (live.length) {
+          setHotels(live);
+          setStatus("live");
+        } else {
+          setHotels(buildMockHotels({ dest, settings }));
+          setStatus("estimated");
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHotels(buildMockHotels({ dest, settings }));
+        setStatus("estimated");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dest, trip.start, trip.end, trip.adults, settings]);
+
   if (!dest) return <p>Pick a destination first.</p>;
   return (
     <div className="flex flex-col gap-4">
       <h2 style={{ fontSize: 24 }}>Stays in {dest.name}</h2>
-      <p style={{ fontSize: 14, opacity: 0.7, marginTop: -8 }}>{nights} night{nights !== 1 ? "s" : ""} · filtered to your saved preferences.</p>
+      <div className="flex items-center gap-2" style={{ marginTop: -8 }}>
+        <p style={{ fontSize: 14, opacity: 0.7 }}>
+          {status === "loading"
+            ? "Checking live stays…"
+            : `${nights} night${nights !== 1 ? "s" : ""} · filtered to your saved preferences.`}
+        </p>
+        {status === "live" && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: C.primary, color: C.paper }}>Live</span>
+        )}
+      </div>
+
+      {status === "estimated" && (
+        <div style={{ fontSize: 12, padding: "8px 12px", borderRadius: 6, background: "#FBF1DE", border: `1px solid ${C.land}`, color: C.ink }}>
+          Live stays unavailable right now — showing estimates.
+        </div>
+      )}
+
+      {status === "loading" && (
+        <p style={{ fontSize: 14, opacity: 0.6 }}>Searching live stays — this can take up to ~20 seconds.</p>
+      )}
+
       <div className="flex flex-col gap-2">
         {hotels.map((h) => {
           const isSelected = hotel?.id === h.id;
+          const meta = [h.stars ? "★".repeat(h.stars) : null, h.type, h.area].filter(Boolean).join(" · ");
           return (
             <Stub key={h.id} style={selectedRing(isSelected, C.primary)}>
               {isSelected && <SelectedBadge />}
               <div onClick={() => setHotel(h)} className="flex items-center justify-between gap-2" style={{ padding: "12px 20px", cursor: "pointer" }}>
                 <div>
                   <div className="flex items-center gap-2" style={{ fontWeight: 600, fontSize: 14 }}><Hotel size={14} color={C.secondary} />{h.name}</div>
-                  <div style={{ fontSize: 12, opacity: 0.6 }}>{"★".repeat(h.stars)} · {h.type} · {h.area}</div>
-                  <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>{h.freeCancel ? "Free cancellation" : "Non-refundable"} · {h.breakfast ? "Breakfast included" : "No breakfast"}</div>
+                  <div style={{ fontSize: 12, opacity: 0.6 }}>{meta || "Stay"}{h.rating != null ? ` · ${h.rating.toFixed(1)}★ rating` : ""}</div>
+                  {(h.freeCancel != null || h.breakfast != null) && (
+                    <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>{h.freeCancel ? "Free cancellation" : "Non-refundable"} · {h.breakfast ? "Breakfast included" : "No breakfast"}</div>
+                  )}
                 </div>
                 <div style={{ textAlign: "right" }}><div className="mono" style={{ fontWeight: 600 }}>{fmt(h.price)}</div><div style={{ fontSize: 10, opacity: 0.5 }}>/night</div></div>
               </div>
             </Stub>
           );
         })}
-        {hotels.length === 0 && <p style={{ fontSize: 14, opacity: 0.6 }}>No stays match your preferences — adjust filters in Settings.</p>}
+        {status !== "loading" && hotels.length === 0 && <p style={{ fontSize: 14, opacity: 0.6 }}>No stays found for this destination — try different dates or adjust filters in Settings.</p>}
       </div>
       {hotel && (
         <div className="flex items-center gap-3" style={{ paddingTop: 4 }}>
