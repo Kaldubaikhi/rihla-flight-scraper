@@ -675,9 +675,7 @@ function loadScript(src) {
 function ExportStep({ trip, dest, flight, hotel, rooms, nights, plan, breakdown, setBreakdown, flightTotal, hotelTotal, activitiesTotal, remaining, home }) {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
-  const pageRefs = useRef([]);
-  pageRefs.current = [];
-  const addRef = (el) => { if (el) pageRefs.current.push(el); };
+  const docRef = useRef(null);
 
   if (!dest) return <p>Pick a destination first.</p>;
   const quote = QUOTES[Math.abs((dest.name.length + trip.adults) % QUOTES.length)];
@@ -691,14 +689,12 @@ function ExportStep({ trip, dest, flight, hotel, rooms, nights, plan, breakdown,
       const pdf = new jsPDF("p", "pt", "a4");
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
-      for (let i = 0; i < pageRefs.current.length; i++) {
-        const canvas = await window.html2canvas(pageRefs.current[i], { scale: 2, backgroundColor: "#ffffff" });
-        const imgData = canvas.toDataURL("image/png");
-        const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
-        const w = canvas.width * ratio, h = canvas.height * ratio;
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
-      }
+      // Capture the whole proposal as one image and fit it onto a single A4 page.
+      const canvas = await window.html2canvas(docRef.current, { scale: 2, backgroundColor: C.paper });
+      const imgData = canvas.toDataURL("image/png");
+      const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+      const w = canvas.width * ratio, h = canvas.height * ratio;
+      pdf.addImage(imgData, "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
       pdf.save(`trip-${dest.name.replace(/\s+/g, "-").toLowerCase()}.pdf`);
     } catch (e) {
       setError("Couldn't generate the PDF just now — check your connection and try again.");
@@ -724,51 +720,53 @@ function ExportStep({ trip, dest, flight, hotel, rooms, nights, plan, breakdown,
         {error && <p style={{ fontSize: 12, color: C.warn }}>{error}</p>}
       </div>
 
-      <div ref={addRef} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 24 }}>
-        <div className="mono" style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.5 }}>Trip document</div>
-        <h1 style={{ fontSize: 30, marginTop: 4 }}>{dest.name}</h1>
-        <div style={{ fontSize: 14, opacity: 0.7 }}>{dest.region} · {trip.start} → {trip.end} · {nights} nights · from {home.name}</div>
-        <div className="flex items-center gap-2" style={{ marginTop: 16, fontSize: 14 }}>
-          <Users size={15} /> {trip.adults} adult{trip.adults !== 1 ? "s" : ""}{trip.kids ? `, ${trip.kids} kid${trip.kids !== 1 ? "s" : ""}` : ""}
-          {trip.names.length > 0 && <span style={{ opacity: 0.6 }}>— {trip.names.join(", ")}</span>}
+      <div ref={docRef} style={{ background: C.paper, borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: 24 }}>
+          <div className="mono" style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.5 }}>Trip document</div>
+          <h1 style={{ fontSize: 30, marginTop: 4 }}>{dest.name}</h1>
+          <div style={{ fontSize: 14, opacity: 0.7 }}>{dest.region} · {trip.start} → {trip.end} · {nights} nights · from {home.name}</div>
+          <div className="flex items-center gap-2" style={{ marginTop: 16, fontSize: 14 }}>
+            <Users size={15} /> {trip.adults} adult{trip.adults !== 1 ? "s" : ""}{trip.kids ? `, ${trip.kids} kid${trip.kids !== 1 ? "s" : ""}` : ""}
+            {trip.names.length > 0 && <span style={{ opacity: 0.6 }}>— {trip.names.join(", ")}</span>}
+          </div>
         </div>
-      </div>
 
-      <div ref={addRef} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
-        <h2 style={{ fontSize: 20 }}>Flight & stay</h2>
-        {flight && <div className="flex items-center gap-2" style={{ fontSize: 14 }}><Plane size={15} color={C.primary} /> {flight.airline} · {flight.stops === 0 ? "nonstop" : flight.stops + " stop(s)"} · {flight.duration.toFixed(1)}h · <span className="mono">{fmt(flightTotal)}</span></div>}
-        {hotel && <div className="flex items-center gap-2" style={{ fontSize: 14 }}><Hotel size={15} color={C.secondary} /> {hotel.name} · {"★".repeat(hotel.stars)} · {rooms} room{rooms !== 1 ? "s" : ""} · {hotel.area} · <span className="mono">{fmt(hotelTotal)}</span></div>}
-      </div>
-
-      <div ref={addRef} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 24 }}>
-        <h2 style={{ fontSize: 20, marginBottom: 12 }}>Daily plan</h2>
-        <div className="flex flex-col gap-2">
-          {Object.entries(plan).filter(([, v]) => v.length).map(([day, acts]) => (
-            <div key={day} style={{ fontSize: 14 }}><span className="mono" style={{ opacity: 0.6 }}>{day}</span> — {acts.map((a) => a.name).join(", ")}</div>
-          ))}
-          {Object.values(plan).flat().length === 0 && <div style={{ fontSize: 14, opacity: 0.5 }}>No activities planned yet.</div>}
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+          <h2 style={{ fontSize: 20 }}>Flight & stay</h2>
+          {flight && <div className="flex items-center gap-2" style={{ fontSize: 14 }}><Plane size={15} color={C.primary} /> {flight.airline} · {flight.stops === 0 ? "nonstop" : flight.stops + " stop(s)"} · {flight.duration != null ? flight.duration.toFixed(1) + "h" : "—"} · <span className="mono">{fmt(flightTotal)}</span></div>}
+          {hotel && <div className="flex items-center gap-2" style={{ fontSize: 14 }}><Hotel size={15} color={C.secondary} /> {hotel.name} · {"★".repeat(hotel.stars)} · {rooms} room{rooms !== 1 ? "s" : ""} · {hotel.area} · <span className="mono">{fmt(hotelTotal)}</span></div>}
         </div>
-      </div>
 
-      <div ref={addRef} style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 24 }}>
-        <h2 style={{ fontSize: 20, marginBottom: 12 }}>Budget breakdown</h2>
-        <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
-          <tbody>
-            <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Flight</td><td className="mono" style={{ textAlign: "right" }}>{fmt(flightTotal)}</td></tr>
-            <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Residence</td><td className="mono" style={{ textAlign: "right" }}>{fmt(hotelTotal)}</td></tr>
-            <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Activities</td><td className="mono" style={{ textAlign: "right" }}>{fmt(activitiesTotal)}</td></tr>
-            <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Food</td><td className="mono" style={{ textAlign: "right" }}>{fmt(breakdown.food)}</td></tr>
-            <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Shopping</td><td className="mono" style={{ textAlign: "right" }}>{fmt(breakdown.shopping)}</td></tr>
-            <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Car / trains</td><td className="mono" style={{ textAlign: "right" }}>{fmt(breakdown.transport)}</td></tr>
-            <tr><td style={{ padding: "8px 0", fontWeight: 600 }}>Remaining of {fmt(trip.budget)} budget</td><td className="mono" style={{ textAlign: "right", fontWeight: 600, color: remaining < 0 ? C.warn : C.ink }}>{fmt(remaining)}</td></tr>
-          </tbody>
-        </table>
-      </div>
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: 24 }}>
+          <h2 style={{ fontSize: 20, marginBottom: 12 }}>Daily plan</h2>
+          <div className="flex flex-col gap-2">
+            {Object.entries(plan).filter(([, v]) => v.length).map(([day, acts]) => (
+              <div key={day} style={{ fontSize: 14 }}><span className="mono" style={{ opacity: 0.6 }}>{day}</span> — {acts.map((a) => a.name).join(", ")}</div>
+            ))}
+            {Object.values(plan).flat().length === 0 && <div style={{ fontSize: 14, opacity: 0.5 }}>No activities planned yet.</div>}
+          </div>
+        </div>
 
-      <div ref={addRef} style={{ background: C.ink, color: C.paper, borderRadius: 8, padding: 32, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 240 }}>
-        <Sparkles color={C.primaryLight} style={{ marginBottom: 12 }} />
-        <p className="display" style={{ fontSize: 20, fontStyle: "italic", maxWidth: 380 }}>{quote}</p>
-        <div style={{ fontSize: 11, opacity: 0.5, marginTop: 32 }}>Made with 🤍 by Kholuod</div>
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: 24 }}>
+          <h2 style={{ fontSize: 20, marginBottom: 12 }}>Budget breakdown</h2>
+          <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
+            <tbody>
+              <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Flight</td><td className="mono" style={{ textAlign: "right" }}>{fmt(flightTotal)}</td></tr>
+              <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Residence</td><td className="mono" style={{ textAlign: "right" }}>{fmt(hotelTotal)}</td></tr>
+              <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Activities</td><td className="mono" style={{ textAlign: "right" }}>{fmt(activitiesTotal)}</td></tr>
+              <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Food</td><td className="mono" style={{ textAlign: "right" }}>{fmt(breakdown.food)}</td></tr>
+              <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Shopping</td><td className="mono" style={{ textAlign: "right" }}>{fmt(breakdown.shopping)}</td></tr>
+              <tr style={{ borderBottom: `1px solid ${C.ocean}` }}><td style={{ padding: "6px 0" }}>Car / trains</td><td className="mono" style={{ textAlign: "right" }}>{fmt(breakdown.transport)}</td></tr>
+              <tr><td style={{ padding: "8px 0", fontWeight: 600 }}>Remaining of {fmt(trip.budget)} budget</td><td className="mono" style={{ textAlign: "right", fontWeight: 600, color: remaining < 0 ? C.warn : C.ink }}>{fmt(remaining)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ background: C.ink, color: C.paper, borderRadius: 8, padding: 32, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+          <Sparkles color={C.primaryLight} style={{ marginBottom: 12 }} />
+          <p className="display" style={{ fontSize: 20, fontStyle: "italic", maxWidth: 380 }}>{quote}</p>
+          <div style={{ fontSize: 11, opacity: 0.5, marginTop: 24 }}>Made with 🤍 by Kholuod</div>
+        </div>
       </div>
     </div>
   );
