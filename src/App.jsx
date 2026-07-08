@@ -290,7 +290,7 @@ export default function App() {
         {step === 0 && <PreferencesStep settings={settings} toggleArr={toggleArr} setSettings={setSettings} />}
         {step === 1 && <TripStep trip={trip} setTrip={setTrip} />}
         {step === 2 && <DiscoverStep suggested={suggested} destId={destId} setDestId={setDestId} trip={trip} home={home} />}
-        {step === 3 && <FlightStep dest={dest} flights={flights} flight={flight} setFlight={setFlight} />}
+        {step === 3 && <FlightStep dest={dest} home={home} trip={trip} settings={settings} flight={flight} setFlight={setFlight} />}
         {step === 4 && <HotelStep dest={dest} hotels={hotels} hotel={hotel} setHotel={setHotel} rooms={rooms} setRooms={setRooms} nights={nights} />}
         {step === 5 && <PlanStep dest={dest} activities={activities} days={days} plan={plan} addToDay={addToDay} removeFromDay={removeFromDay} setCustomActivities={setCustomActivities} participants={participants} />}
         {step === 6 && <ExportStep trip={trip} dest={dest} flight={flight} hotel={hotel} rooms={rooms} nights={nights} plan={plan} breakdown={breakdown} setBreakdown={setBreakdown} flightTotal={flightTotal} hotelTotal={hotelTotal} activitiesTotal={activitiesTotal} remaining={remaining} home={home} />}
@@ -435,17 +435,74 @@ function DiscoverStep({ suggested, destId, setDestId, trip, home }) {
   );
 }
 
-function FlightStep({ dest, flights, flight, setFlight }) {
+function FlightStep({ dest, home, trip, settings, flight, setFlight }) {
   const [expanded, setExpanded] = useState(null);
+  const [flights, setFlights] = useState([]);
+  const [status, setStatus] = useState("idle"); // idle | loading | live | estimated
+
+  useEffect(() => {
+    if (!dest || !home) return;
+    let cancelled = false;
+    setStatus("loading");
+    setFlights([]);
+    const url =
+      `/api/flights?from=${encodeURIComponent(home.iata)}&to=${encodeURIComponent(dest.iata)}` +
+      `&departDate=${encodeURIComponent(trip.start)}` +
+      (trip.end ? `&returnDate=${encodeURIComponent(trip.end)}` : "");
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const live = mapLiveFlights(data && data.flights, { settings });
+        if (live.length) {
+          setFlights(live);
+          setStatus("live");
+        } else {
+          setFlights(buildMockFlights({ dest, home, destId: dest.id, settings }));
+          setStatus("estimated");
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFlights(buildMockFlights({ dest, home, destId: dest.id, settings }));
+        setStatus("estimated");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dest, home, trip.start, trip.end, settings]);
+
   if (!dest) return <p>Pick a destination first.</p>;
+
   return (
     <div className="flex flex-col gap-4">
       <h2 style={{ fontSize: 24 }}>Flights to {dest.name}</h2>
-      <p style={{ fontSize: 14, opacity: 0.7, marginTop: -8 }}>Filtered to your preferred airlines from settings. Tap a card for full details.</p>
+      <div className="flex items-center gap-2" style={{ marginTop: -8 }}>
+        <p style={{ fontSize: 14, opacity: 0.7 }}>
+          {status === "loading"
+            ? "Checking live prices…"
+            : "Filtered to your preferred airlines. Tap a card for full details."}
+        </p>
+        {status === "live" && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: C.primary, color: C.paper }}>Live</span>
+        )}
+      </div>
+
+      {status === "estimated" && (
+        <div style={{ fontSize: 12, padding: "8px 12px", borderRadius: 6, background: "#FBF1DE", border: `1px solid ${C.land}`, color: C.ink }}>
+          Live prices unavailable right now — showing estimates.
+        </div>
+      )}
+
+      {status === "loading" && (
+        <p style={{ fontSize: 14, opacity: 0.6 }}>Searching live flights — this can take up to ~20 seconds.</p>
+      )}
+
       <div className="flex flex-col gap-2">
         {flights.map((f) => {
           const isOpen = expanded === f.id;
           const isSelected = flight?.id === f.id;
+          const durText = f.duration != null ? f.duration.toFixed(1) + "h" : "—";
           return (
             <Stub key={f.id} style={selectedRing(isSelected, C.primary)}>
               {isSelected && <SelectedBadge />}
@@ -453,7 +510,7 @@ function FlightStep({ dest, flights, flight, setFlight }) {
                 <div className="flex items-center justify-between gap-2" style={{ cursor: "pointer" }} onClick={() => setExpanded(isOpen ? null : f.id)}>
                   <div>
                     <div className="flex items-center gap-2" style={{ fontWeight: 600, fontSize: 14 }}><Plane size={14} color={C.primary} />{f.airline}</div>
-                    <div className="mono" style={{ fontSize: 12, opacity: 0.6 }}>{f.depart} · {f.duration.toFixed(1)}h · {f.stops === 0 ? "nonstop" : f.stops + " stop" + (f.stops > 1 ? "s" : "")}</div>
+                    <div className="mono" style={{ fontSize: 12, opacity: 0.6 }}>{f.depart ? f.depart + " · " : ""}{durText} · {f.stops === 0 ? "nonstop" : f.stops != null ? f.stops + " stop" + (f.stops > 1 ? "s" : "") : "—"}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div style={{ textAlign: "right" }}><div className="mono" style={{ fontWeight: 600 }}>{fmt(f.price)}</div><div style={{ fontSize: 10, opacity: 0.5 }}>/adult, round trip</div></div>
@@ -463,13 +520,15 @@ function FlightStep({ dest, flights, flight, setFlight }) {
                 {isOpen && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${C.line}`, fontSize: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                     <div className="grid grid-cols-2 gap-2">
-                      <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Outbound</div><div className="mono">{f.depart} → {f.arrive}</div></div>
-                      <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Stops</div><div>{f.stops === 0 ? "Nonstop" : `${f.stops} stop(s), ~1h20 each`}</div></div>
+                      <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Outbound</div><div className="mono">{f.depart ? `${f.depart}${f.arrive ? " → " + f.arrive : ""}` : "See airline"}</div></div>
+                      <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Stops</div><div>{f.stops === 0 ? "Nonstop" : f.stops != null ? `${f.stops} stop(s)` : "—"}</div></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Return flight</div><div className="mono">{f.returnDepart} → {addMinutes(f.returnDepart, f.duration * 60)}</div></div>
-                      <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Duration</div><div>{f.duration.toFixed(1)}h each way</div></div>
-                    </div>
+                    {f.returnDepart && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Return flight</div><div className="mono">{f.returnDepart} → {addMinutes(f.returnDepart, (f.duration || 0) * 60)}</div></div>
+                        <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Duration</div><div>{durText} each way</div></div>
+                      </div>
+                    )}
                     <button onClick={() => setFlight(f)} className="flex items-center gap-1.5" style={{ marginTop: 4, fontSize: 12, fontWeight: 600, padding: "8px 18px", borderRadius: 999, background: isSelected ? C.secondary : C.primary, color: C.paper, border: "none", alignSelf: "flex-start" }}>
                       <Check size={13} /> {isSelected ? "Selected — change" : "Select this flight"}
                     </button>
@@ -479,7 +538,7 @@ function FlightStep({ dest, flights, flight, setFlight }) {
             </Stub>
           );
         })}
-        {flights.length === 0 && <p style={{ fontSize: 14, opacity: 0.6 }}>No flights match your preferred airlines for this route — adjust preferences in Settings.</p>}
+        {status !== "loading" && flights.length === 0 && <p style={{ fontSize: 14, opacity: 0.6 }}>No flights found for this route — try different dates or adjust preferences in Settings.</p>}
       </div>
     </div>
   );
