@@ -139,6 +139,7 @@ function mapLiveFlights(apiFlights, { settings }) {
       depart: depart || null,
       arrive: arrive || null,
       returnDepart: null,
+      layovers: Array.isArray(f.layovers) ? f.layovers : [],
       live: true,
     };
   });
@@ -521,7 +522,17 @@ function FlightStep({ dest, home, trip, settings, flight, setFlight }) {
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${C.line}`, fontSize: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                     <div className="grid grid-cols-2 gap-2">
                       <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Outbound</div><div className="mono">{f.depart ? `${f.depart}${f.arrive ? " → " + f.arrive : ""}` : "See airline"}</div></div>
-                      <div><div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Stops</div><div>{f.stops === 0 ? "Nonstop" : f.stops != null ? `${f.stops} stop(s)` : "—"}</div></div>
+                      <div>
+                        <div style={{ fontSize: 10, textTransform: "uppercase", opacity: 0.5 }}>Stops</div>
+                        <div>{f.stops === 0 ? "Nonstop" : f.stops != null ? `${f.stops} stop${f.stops > 1 ? "s" : ""}` : "—"}</div>
+                        {f.layovers && f.layovers.length > 0 && (
+                          <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+                            {f.layovers.map((l, li) => (
+                              <div key={li} className="mono" style={{ fontSize: 11, opacity: 0.7 }}>{l.duration} in {l.place}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     {f.returnDepart && (
                       <div className="grid grid-cols-2 gap-2">

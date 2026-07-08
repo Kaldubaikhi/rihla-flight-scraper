@@ -31,7 +31,7 @@ import { chromium } from "playwright";
  * @param {string} params.to          IATA code or city name, e.g. "DXB"
  * @param {string} params.departDate  "YYYY-MM-DD"
  * @param {string} [params.returnDate] "YYYY-MM-DD" (omit for one-way)
- * @returns {Promise<Array<{airline:string, price:number, currency:string, duration:string, stops:number, raw:string}>>}
+ * @returns {Promise<Array<{airline:string, price:number, currency:string, duration:string, stops:number, layovers:Array<{duration:string, place:string}>, raw:string}>>}
  */
 export async function searchFlights({ from, to, departDate, returnDate, debug = false }) {
   const query = returnDate
@@ -145,12 +145,25 @@ async function extractFlights(page) {
         const hours = durationMatch ? parseInt(durationMatch[1], 10) : null;
         const mins = durationMatch && durationMatch[2] ? parseInt(durationMatch[2], 10) : 0;
 
+        // Layover details, when Google includes them in the label. Two common
+        // phrasings:
+        //   "2 hr 30 min layover at Hamad International Airport, Doha"
+        //   "Layover (1 of 1) is 2 hr 30 min at Hamad International Airport in Doha"
+        const layovers = [];
+        const pushLayover = (dur, place) => {
+          const clean = { duration: dur.replace(/\s+/g, " ").trim(), place: place.replace(/\s+/g, " ").trim() };
+          if (clean.place && !layovers.some((l) => l.place === clean.place && l.duration === clean.duration)) layovers.push(clean);
+        };
+        for (const m of label.matchAll(/(\d+\s*hr(?:\s*\d+\s*min)?|\d+\s*min)\s+layover\s+(?:at|in)\s+([^.,]+(?:,\s*[^.,]+)?)/gi)) pushLayover(m[1], m[2]);
+        for (const m of label.matchAll(/layover[^.]*?\bis\s+(\d+\s*hr(?:\s*\d+\s*min)?|\d+\s*min)\s+at\s+([^.,]+(?:\s+in\s+[^.,]+)?)/gi)) pushLayover(m[1], m[2]);
+
         return {
           airline: airlineMatch ? airlineMatch[1].trim() : "Unknown",
           price: parseInt(priceMatch[1].replace(/,/g, ""), 10),
           currency: /riyal|SAR/i.test(label) ? "SAR" : /dollar|USD|\$/i.test(label) ? "USD" : "unknown",
           duration: hours != null ? `${hours}h${mins ? " " + mins + "m" : ""}` : null,
           stops: /nonstop/i.test(label) ? 0 : stopsMatch ? parseInt(stopsMatch[1], 10) : null,
+          layovers,
           raw: label,
         };
       })
