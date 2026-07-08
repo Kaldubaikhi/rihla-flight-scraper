@@ -98,6 +98,60 @@ function bearingDeg(a, b) {
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
+/* ---------- flight data: mock generator + live-result adapter ---------- */
+function buildMockFlights({ dest, home, destId, settings }) {
+  if (!dest) return [];
+  const stopsOpts = [0, 0, 1, 1, 2];
+  const hours = haversineHours(home, dest);
+  const list = AIRLINES.map((al, i) => {
+    const mult = 0.85 + ((i * 37) % 60) / 100;
+    const stops = stopsOpts[i % stopsOpts.length];
+    const depart = `${(8 + (i % 6)).toString().padStart(2, "0")}:${i % 2 ? "15" : "40"}`;
+    const duration = Math.round((hours + stops * 1.6) * 10) / 10;
+    return { id: al + destId, airline: al, stops, duration, price: Math.round(dest.base * mult), depart, arrive: addMinutes(depart, duration * 60), returnDepart: addMinutes(depart, 12 * 60 + 20) };
+  });
+  const filtered = settings.airlines.length ? list.filter((f) => settings.airlines.includes(f.airline)) : list;
+  return filtered.sort((a, b) => a.price - b.price);
+}
+
+function parseDurationHours(str) {
+  if (!str) return null;
+  const m = String(str).match(/(\d+)\s*h(?:\s*(\d+)\s*m)?/i);
+  if (!m) return null;
+  return Math.round((parseInt(m[1], 10) + (m[2] ? parseInt(m[2], 10) : 0) / 60) * 10) / 10;
+}
+
+function parseTimesFromRaw(raw) {
+  if (!raw) return {};
+  const m = String(raw).match(/at\s+(\d{1,2}:\d{2}\s?[AP]M)\b[\s\S]*?arrives[\s\S]*?at\s+(\d{1,2}:\d{2}\s?[AP]M)\b/i);
+  return m ? { depart: m[1].replace(/\s+/g, " "), arrive: m[2].replace(/\s+/g, " ") } : {};
+}
+
+function mapLiveFlights(apiFlights, { settings }) {
+  const mapped = (apiFlights || []).map((f, i) => {
+    const { depart, arrive } = parseTimesFromRaw(f.raw);
+    return {
+      id: (f.airline || "flight") + "-" + i,
+      airline: f.airline || "Unknown",
+      stops: typeof f.stops === "number" ? f.stops : null,
+      duration: parseDurationHours(f.duration),
+      price: f.price,
+      depart: depart || null,
+      arrive: arrive || null,
+      returnDepart: null,
+      live: true,
+    };
+  });
+  // Preferred-airline filter is a soft preference: live airline names (e.g.
+  // "flyadeal") often don't match the settings list, so only apply the filter
+  // when it still leaves at least one flight — otherwise show all live results.
+  if (settings.airlines.length) {
+    const f = mapped.filter((x) => settings.airlines.includes(x.airline));
+    if (f.length) return f.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+  }
+  return mapped.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+}
+
 /* ---------- style helpers (inline only — no color/size bracket classes) ---------- */
 const cardStyle = (accent = C.line) => ({ position: "relative", background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, boxShadow: "0 1px 2px rgba(27,36,48,0.06)" });
 const selectedRing = (on, color = C.primary) => (on ? { boxShadow: `0 0 0 2px ${color}` } : {});
@@ -172,21 +226,6 @@ export default function App() {
       .map((d) => ({ ...d, moodMatch: d.moods.includes(trip.mood), hours: haversineHours(home, d) }))
       .sort((a, b) => (b.moodMatch - a.moodMatch) || a.hours - b.hours);
   }, [trip.type, trip.mood, home]);
-
-  const flights = useMemo(() => {
-    if (!dest) return [];
-    const stopsOpts = [0, 0, 1, 1, 2];
-    const hours = haversineHours(home, dest);
-    const list = AIRLINES.map((al, i) => {
-      const mult = 0.85 + ((i * 37) % 60) / 100;
-      const stops = stopsOpts[i % stopsOpts.length];
-      const depart = `${(8 + (i % 6)).toString().padStart(2, "0")}:${i % 2 ? "15" : "40"}`;
-      const duration = Math.round((hours + stops * 1.6) * 10) / 10;
-      return { id: al + destId, airline: al, stops, duration, price: Math.round(dest.base * mult), depart, arrive: addMinutes(depart, duration * 60), returnDepart: addMinutes(depart, 12 * 60 + 20) };
-    });
-    const filtered = settings.airlines.length ? list.filter((f) => settings.airlines.includes(f.airline)) : list;
-    return filtered.sort((a, b) => a.price - b.price);
-  }, [dest, settings.airlines, destId, home]);
 
   const hotels = useMemo(() => {
     if (!dest) return [];
