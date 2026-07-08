@@ -5,14 +5,21 @@
   "description": "Headless-browser flight search used to build live trip proposals (no booking, no data storage).",
   "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
     "start": "node server.js",
     "test": "node scraper.js"
   },
   "dependencies": {
     "express": "^4.19.2",
     "cors": "^2.8.5",
-    "playwright": "1.46.0"
+    "playwright": "1.46.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.400.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "@vitejs/plugin-react": "^4.3.1"
   }
 }
-
-
