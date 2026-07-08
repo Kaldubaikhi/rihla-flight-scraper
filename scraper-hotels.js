@@ -40,7 +40,7 @@ export async function searchHotels({ city, checkIn, checkOut, adults = 2, debug 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     await page
-      .waitForSelector('a[href*="/travel/hotels/"], [aria-label*="riyal"], [aria-label*="SAR"]', { timeout: 20000 })
+      .waitForSelector('[role="listitem"], a[href*="/travel/hotels/"]', { timeout: 20000 })
       .catch(() => null);
 
     const hotels = await extractHotels(page);
@@ -59,38 +59,47 @@ export async function searchHotels({ city, checkIn, checkOut, adults = 2, debug 
 
 async function extractHotels(page) {
   return page.evaluate(() => {
-    const priceRe = /([\d,]+)\s*(?:Saudi riyals|riyals)/i;
-    const altPriceRe = /SAR\s?([\d,]+)/i;
+    // Google Hotels prices come back in USD on cloud IPs (the curr=SAR hint is
+    // ignored). The Saudi riyal is pegged to the dollar at 3.75, so converting
+    // is exact and stable. Prefer a native SAR figure if one is ever present.
+    const SAR_PER_USD = 3.75;
+    const parsePrice = (t) => {
+      let m = t.match(/([\d,]+)\s*(?:Saudi riyals|riyals)/i) || t.match(/SAR\s?([\d,]+)/i);
+      if (m) return parseInt(m[1].replace(/,/g, ""), 10);
+      m = t.match(/\$\s?([\d,]+)/);
+      if (m) return Math.round(parseInt(m[1].replace(/,/g, ""), 10) * SAR_PER_USD);
+      return null;
+    };
+
+    // Card text reads like "Tiber Suite $100 4.5 (78)" or the aria-label
+    // "LH Domus Caesari, $150" — the name is whatever precedes the price token.
+    const splitBeforePrice = /\s*[,·]?\s*(?:\$|SAR\b|\d[\d,]*\s*(?:Saudi riyals|riyals))/i;
+    const junkName = /^(sort by|all filters|price|guest rating|hotel class|amenities|deals|explore|filters|map|results)/i;
 
     const seen = new Set();
     const out = [];
-    const cards = Array.from(document.querySelectorAll('a[href*="/travel/hotels/"], [role="listitem"]'));
+    const cards = Array.from(document.querySelectorAll('[role="listitem"], a[href*="/travel/hotels/"]'));
 
     for (const el of cards) {
       const text = (el.getAttribute("aria-label") || el.innerText || "").replace(/\s+/g, " ").trim();
-      if (!text || text.length < 8) continue;
+      if (!text || text.length < 6) continue;
 
-      const priceMatch = text.match(priceRe) || text.match(altPriceRe);
-      if (!priceMatch) continue;
+      const price = parsePrice(text);
+      if (price == null) continue;
 
-      // Name: prefer a heading inside the card, else the text before the price.
-      let name = "";
-      const h = el.querySelector('h1,h2,h3,[role="heading"]');
-      if (h && h.innerText) name = h.innerText.trim();
-      if (!name) name = text.split(/[.·|]/)[0].trim();
-      name = name.replace(priceRe, "").replace(altPriceRe, "").trim();
-      if (!name || name.length < 2) continue;
-
-      const ratingMatch = text.match(/(\d(?:\.\d)?)\s*(?:\/\s*5|out of 5)/i) || text.match(/\b(\d\.\d)\b/);
-      const starMatch = text.match(/(\d)[-\s]?star/i);
+      let name = text.split(splitBeforePrice)[0].replace(/[,·]\s*$/, "").trim();
+      if (!name || name.length < 2 || name.length > 80 || junkName.test(name)) continue;
 
       const key = name.toLowerCase().slice(0, 40);
       if (seen.has(key)) continue;
       seen.add(key);
 
+      const ratingMatch = text.match(/(\d\.\d)\s*\(\d[\d,]*\)/);
+      const starMatch = text.match(/(\d)[-\s]?star/i);
+
       out.push({
         name: name.slice(0, 80),
-        price: parseInt(priceMatch[1].replace(/,/g, ""), 10),
+        price,
         currency: "SAR",
         rating: ratingMatch ? parseFloat(ratingMatch[1]) : null,
         stars: starMatch ? parseInt(starMatch[1], 10) : null,
