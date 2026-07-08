@@ -76,25 +76,32 @@ async function extractHotels(page) {
     const splitBeforePrice = /\s*[,·]?\s*(?:\$|SAR\b|\d[\d,]*\s*(?:Saudi riyals|riyals))/i;
     const junkName = /^(sort by|all filters|price|guest rating|hotel class|amenities|deals|explore|filters|map|results)/i;
 
+    // The hotel cards aren't a stable selector, but each card's text has a
+    // recognisable signature: a "$"/riyal price AND a rating ("4.3/5", "(2.2K)")
+    // or a star class ("4-star"). Scan for the smallest elements matching that.
+    const hasPrice = (t) => /\$\s?\d/.test(t) || /riyal/i.test(t);
+    const hasRatingSignal = (t) => /(\d\.\d)\s*\/\s*5|\(\d[\d.,KM]*\)|\d[-\s]?star/i.test(t);
+
     const seen = new Set();
     const out = [];
-    const cards = Array.from(document.querySelectorAll('[role="listitem"], a[href*="/travel/hotels/"]'));
-
-    for (const el of cards) {
-      const text = (el.getAttribute("aria-label") || el.innerText || "").replace(/\s+/g, " ").trim();
-      if (!text || text.length < 6) continue;
+    for (const el of document.querySelectorAll("div, a, li")) {
+      const raw = el.textContent || "";
+      if (!hasPrice(raw)) continue; // cheap pre-filter (textContent, no layout)
+      const text = raw.replace(/\s+/g, " ").trim();
+      if (text.length < 8 || text.length > 200) continue; // single-card sized
+      if (!hasRatingSignal(text)) continue;
 
       const price = parsePrice(text);
       if (price == null) continue;
 
       let name = text.split(splitBeforePrice)[0].replace(/[,·]\s*$/, "").trim();
-      if (!name || name.length < 2 || name.length > 80 || junkName.test(name)) continue;
+      if (!name || name.length < 2 || name.length > 70 || junkName.test(name)) continue;
 
       const key = name.toLowerCase().slice(0, 40);
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const ratingMatch = text.match(/(\d\.\d)\s*\(\d[\d,]*\)/);
+      const ratingMatch = text.match(/(\d\.\d)\s*\/\s*5/) || text.match(/(\d\.\d)\s*\(\d/);
       const starMatch = text.match(/(\d)[-\s]?star/i);
 
       out.push({
@@ -135,6 +142,20 @@ async function collectHotelDiagnostics(page) {
         .map((el) => el.getAttribute('aria-label') || '')
         .filter((l) => /riyal|SAR/i.test(l))
         .slice(0, 4),
+      // What the content-signature extractor actually matches, for verification.
+      cardPreview: (() => {
+        const arr = [];
+        for (const el of document.querySelectorAll("div, a, li")) {
+          const raw = el.textContent || "";
+          if (!/\$\s?\d/.test(raw) && !/riyal/i.test(raw)) continue;
+          const t = raw.replace(/\s+/g, " ").trim();
+          if (t.length < 8 || t.length > 200) continue;
+          if (!/(\d\.\d)\s*\/\s*5|\(\d[\d.,KM]*\)|\d[-\s]?star/i.test(t)) continue;
+          arr.push(t.slice(0, 120));
+          if (arr.length >= 5) break;
+        }
+        return arr;
+      })(),
     };
   });
   return { ...base, ...dom };
